@@ -159,7 +159,7 @@ function [name data] = handleImageMessage(msg, onRxStringMessage)
 end
 
 function handleNDArrayMessage(msg, onRxNDArrayMessage)
-  print("handleNDArrayMessage is not yet implemented");
+  print('handleNDArrayMessage is not yet implemented');
 end
 
 %%  Parse OpenIGTLink messag header
