@@ -1,6 +1,6 @@
 % OpenIGTLink server that executes the received string commands
-function receiver = OpenIGTLinkMessageReceiver(sock, onRxStringMsg, onRxTransformMsg, onRxNDArrayMsg)
-    global onRxStringMessage onRxTransformMessage onRxNDArrayMessage;
+function receiver = OpenIGTLinkMessageReceiver(sock, onRxStringMsg, onRxTransformMsg, onRxNDArrayMsg, onRxImageMsg)
+    global onRxStringMessage onRxTransformMessage onRxNDArrayMessage, onRxImageMsg;
     onRxStringMessage = onRxStringMsg;
     onRxTransformMessage = onRxTransformMsg;
     onRxImageMessage = onRxImageMsg;
@@ -72,7 +72,7 @@ function [name data] = handleImageMessage(msg, onRxStringMessage)
     body = msg.body;
     i=1;
     
-    versionNumber = uint8(body(i)); i = i + 1;
+    versionNumber = uint8(body(i)); i = i + 2;
     numberOfComponents = uint8(body(i)); i = i + 1;
     scalarType = uint8(body(i)); i = i + 1; % 2:int8 3:uint8 4:int16 5:uint16 6:int32 7:uint32 10:float32 11:float64)
     endian = uint8(body(i)); i = i + 1; % 1:BIG 2:LITTLE
@@ -100,8 +100,8 @@ function [name data] = handleImageMessage(msg, onRxStringMessage)
     positionY = convertFromUint8VectorToFloat32(body(i:i+3));i = i + 4;
     positionZ = convertFromUint8VectorToFloat32(body(i:i+3));i = i + 4;
 
-    // Save the transform that is embedded in the IMAGE message into the tracked frame
-    // igtl origin is in the image center
+    % Save the transform that is embedded in the IMAGE message into the tracked frame
+    % igtl origin is in the image center
     centerOriginToCornerOriginTransform=eye(4);
     centerOriginToCornerOriginTransform(1:3,4) = [ -volumeSizeI/2; -volumeSizeJ/2; -volumeSizeK/2 ];
     data.ijkToXyz = data.ijkToXyz * centerOriginToCornerOriginTransform;
@@ -115,19 +115,51 @@ function [name data] = handleImageMessage(msg, onRxStringMessage)
     subVolumeSizeK = convertFromUint8VectorToUint16(body(i:i+1)); i = i + 2;
     
     data.pixelData = zeros(volumeSizeI, volumeSizeJ, volumeSizeK);
+    type = '';
+    typeSize = 1;
+    
+    if (scalarType == 2)
+        type = 'int8';
+        typeSize = 1;
+    elseif (scalarType == 3)
+        type = 'uint8';
+        typeSize = 1;
+    elseif (scalarType == 4)
+        type = 'int16';
+        typeSize = 2;
+    elseif (scalarType == 5)
+        type = 'uint16';
+        typeSize = 2;
+    elseif (scalarType == 6)
+        type = 'int32';
+        typeSize = 4;
+    elseif (scalarType == 7)
+        type = 'uint32';
+        typeSize = 4;
+    elseif (scalarType == 10)
+        type = 'float32';
+        typeSize = 4;
+    elseif (scalarType == 11)
+        type = 'float64';
+        typeSize = 8;
+    else
+        return
+    end
+        
     for kIndex=1:volumeSizeK
       for jIndex=1:volumeSizeJ
         for iIndex=1:volumeSizeI
-          data.pixelData(i,j,k) = convertFromUint8VectorToFloat64(body(i:i+8)); i = i + 8;
-        end
+            data.pixelData(iIndex,jIndex,kIndex) = typecast(uint8(body(i:i+(typeSize-1))), type); i = i + typeSize;
+        end  
       end
     end
     
+    name = msg.deviceName
     %onRxStringMessage(msg.deviceName, msg.string);
 end
 
 function handleNDArrayMessage(msg, onRxNDArrayMessage)
-  print("handleNDArrayMessage is not yet implemented");
+  print('handleNDArrayMessage is not yet implemented');
 end
 
 %%  Parse OpenIGTLink messag header
